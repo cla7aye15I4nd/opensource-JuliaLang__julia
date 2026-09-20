@@ -22,11 +22,7 @@
 #include <llvm/IR/Verifier.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <llvm/Passes/PassBuilder.h>
-#if JL_LLVM_VERSION >= 220000
 #  include <llvm/Plugins/PassPlugin.h>
-#else
-#  include <llvm/Passes/PassPlugin.h>
-#endif
 #if defined(USE_POLLY)
 #include <polly/RegisterPasses.h>
 #include <polly/LinkAllPasses.h>
@@ -1650,11 +1646,7 @@ static void emit_native(Module &M, TargetMachine &TM, SmallVectorImpl<char> &buf
     raw_svector_ostream OS(buf);
     legacy::PassManager emitter;
     addTargetPasses(&emitter, TM.getTargetTriple(), TM.getTargetIRAnalysis());
-#if JL_LLVM_VERSION >= 180000
     auto type = asm_ ? CodeGenFileType::AssemblyFile : CodeGenFileType::ObjectFile;
-#else
-    auto type = asm_ ? CGFT_AssemblyFile : CGFT_ObjectFile;
-#endif
     if (TM.addPassesToEmitFile(emitter, OS, nullptr, type, false))
         jl_safe_printf("ERROR: target does not support generation of %s files\n",
                        asm_ ? "assembly" : "object");
@@ -1668,11 +1660,7 @@ static AOTOutputs add_output_impl(Module &M, TargetMachine &SourceTM, ShardTimer
     AOTOutputs out;
     auto TM = std::unique_ptr<TargetMachine>(
         SourceTM.getTarget().createTargetMachine(
-#if JL_LLVM_VERSION < 210000
-            SourceTM.getTargetTriple().str(),
-#else
             SourceTM.getTargetTriple(),
-#endif
             SourceTM.getTargetCPU(),
             SourceTM.getTargetFeatureString(),
             SourceTM.Options,
@@ -1695,11 +1683,7 @@ static AOTOutputs add_output_impl(Module &M, TargetMachine &SourceTM, ShardTimer
 
         auto PMTM = std::unique_ptr<TargetMachine>(
             SourceTM.getTarget().createTargetMachine(
-#if JL_LLVM_VERSION < 210000
-                SourceTM.getTargetTriple().str(),
-#else
                 SourceTM.getTargetTriple(),
-#endif
                 SourceTM.getTargetCPU(),
                 SourceTM.getTargetFeatureString(),
                 SourceTM.Options,
@@ -2299,11 +2283,7 @@ static void jl_dump_native_locked(jl_native_code_desc_t *data, const char *bc_fn
     }
     std::unique_ptr<TargetMachine> SourceTM(
         jl_ExecutionEngine->getTarget().createTargetMachine(
-#if JL_LLVM_VERSION < 210000
-            TheTriple.getTriple(),
-#else
             TheTriple,
-#endif
             jl_ExecutionEngine->getTargetCPU(),
             jl_ExecutionEngine->getTargetFeatureString(),
             jl_ExecutionEngine->getTargetOptions(),
@@ -2328,11 +2308,7 @@ static void jl_dump_native_locked(jl_native_code_desc_t *data, const char *bc_fn
         LLVMContext Context;
         Context.setDiscardValueNames(true);
         Module sysimgM("sysimg", Context);
-#if JL_LLVM_VERSION < 210000
-        sysimgM.setTargetTriple(TheTriple.str());
-#else
         sysimgM.setTargetTriple(TheTriple);
-#endif
         sysimgM.setDataLayout(DL);
         sysimgM.setStackProtectorGuard(StackProtectorGuard);
         sysimgM.setOverrideStackAlignment(OverrideStackAlignment);
@@ -2344,12 +2320,7 @@ static void jl_dump_native_locked(jl_native_code_desc_t *data, const char *bc_fn
                                               GlobalVariable::ExternalLinkage,
                                               data, "jl_system_image_data");
             sysdata->setAlignment(Align(jl_page_size));
-#if JL_LLVM_VERSION >= 180000
             sysdata->setCodeModel(CodeModel::Large);
-#else
-            if (TheTriple.isX86() && TheTriple.isArch64Bit() && TheTriple.isOSLinux())
-                sysdata->setSection(".ldata");
-#endif
             addComdat(sysdata, TheTriple);
             Constant *len = ConstantInt::get(sysimgM.getDataLayout().getIntPtrType(Context), sysimg_data.size());
             addComdat(new GlobalVariable(sysimgM, len->getType(), true,
@@ -2501,11 +2472,7 @@ static void jl_dump_native_locked(jl_native_code_desc_t *data, const char *bc_fn
         LLVMContext Context;
         Context.setDiscardValueNames(true);
         Module metadataM("metadata", Context);
-#if JL_LLVM_VERSION < 210000
-        metadataM.setTargetTriple(TheTriple.str());
-#else
         metadataM.setTargetTriple(TheTriple);
-#endif
         metadataM.setDataLayout(DL);
         metadataM.setStackProtectorGuard(StackProtectorGuard);
         metadataM.setOverrideStackAlignment(OverrideStackAlignment);
@@ -2630,11 +2597,7 @@ static void jl_dump_native_locked(jl_native_code_desc_t *data, const char *bc_fn
         JL_TIMING(NATIVE_AOT, NATIVE_Write);
 
         object::Archive::Kind Kind = getDefaultForHost(TheTriple);
-#if JL_LLVM_VERSION >= 180000
 #define WritingMode SymtabWritingMode::NormalSymtab
-#else
-#define WritingMode true
-#endif
 #define WRITE_ARCHIVE(fname, field, prefix, suffix) \
     if (fname) {\
         SmallVector<NewArchiveMember, 0> archive; \
